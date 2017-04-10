@@ -1,0 +1,17 @@
+/build/*
+/bin/
+/testscripts/test.py
+/cscope.out
+/hostbin/
+/hostinclude/
+/include/
+/lib/
+/sbin/
+/testbin/
+/defs.mk
+/kern/build
+/kern/compile
+/kernel-*
+/kernel
+/userland/lib/crt0/build
+/sys161.conf
