@@ -54,3 +54,27 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd)
 
 	return 0;
 }
+
+
+
+/*
+ * Read system call: read from a file.
+ * this syscall will read buflen bytes from the fd file descriptor into the
+ * userland buffer buf and return the number of bytes read in sz.
+ */
+int 
+sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
+{
+
+
+	// kprintf("[SYS_READ] reading from fd: ", fd);
+	// kprintf("[SYS_READ] reading into %p: ", buf);
+	// kprintf("[SYS_READ] reading num bytes: %d", buflen);
+	// kprintf("[SYS_READ] total bytes read: %d", *sz);
+
+	file_read(fd, buf, buflen, sz);
+
+	return 0;
+
+}
+

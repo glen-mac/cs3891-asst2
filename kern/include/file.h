@@ -32,6 +32,9 @@ struct file_table {
 /* opens a file using the VFS and stores the result in the thread file table */
 int file_open(char *filename, int flags, mode_t mode, int *fd);
 
+/* reads from a file and stores the result in buf */
+int file_read(int fd, userptr_t buf, size_t buflen, int *sz);
+
 /* checks if a table exists for the current thread and creates one */
 int file_table_init(const char *stdin_path, const char *stdout_path,
 		const char *stderr_path);

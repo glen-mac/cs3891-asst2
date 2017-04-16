@@ -16,6 +16,7 @@
 #include <copyinout.h>
 
 
+
 /*
  * file_open
  * deals within opening a file on the kernel side.
@@ -70,6 +71,42 @@ file_open(char *filename, int flags, mode_t mode, int *fd)
 	return EMFILE;
 }
 
+/*
+ * file_read
+ * system level function from reading from a vnode.
+ * The idea is we want to get the current thread, read from it's FDT and get
+ * the pointer to the vnode we want, and then we want to read buflen bytes
+ * at maximum from the vnode and we want to read into buf.
+ */
+int
+file_read(int fd, userptr_t buf, size_t buflen, int *sz)
+{
+	int result;
+	struct open_file *of	= curthread->t_ft->openfiles[fd];
+	struct vnode *vn		= of->vn;
+
+	struct iovec	iovec_tmp;
+	struct uio		uio_tmp;
+	unsigned char	buf_tmp[buflen];
+	
+	/* initialize a uio with the read flag set, pointing into our buffer */
+	uio_kinit(&iovec_tmp, &uio_tmp, &buf_tmp, buflen, of->os, UIO_READ);
+
+	/* read from vnode into our uio object */
+	result = VOP_READ(vn, &uio_tmp);
+	if (result) {
+		return result;
+	}
+
+	*sz = buflen;
+
+	/* copy data out to user space */
+	copyout(&buf_tmp,  buf, buflen);
+
+	return 0;
+}
+
+
 /* 
  * file_table_init
  * this function is called when a process is run. The point of it is to
@@ -77,6 +114,7 @@ file_open(char *filename, int flags, mode_t mode, int *fd)
  * free positons may be done when opening files. It also creates the
  * stdin, stdout and stderror file descriptors.
  */
+
 int file_table_init(const char *stdin_path, const char *stdout_path,
 		const char *stderr_path)
 {
