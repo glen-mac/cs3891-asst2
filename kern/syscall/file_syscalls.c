@@ -31,7 +31,7 @@
 #include <file.h>
 #include <copyinout.h>
 #include <syscall.h>
-
+#include <kern/errno.h>
 
 /*
  * Open system call: open a file.
@@ -64,7 +64,13 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd)
 int 
 sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 {
-	file_write(fd, buf, nbytes, sz);
+	int result;
+
+	result = file_write(fd, buf, nbytes, sz);
+	if (result) {
+		return result;
+	}
+	
 	return 0;
 }
 
@@ -77,14 +83,16 @@ sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 int 
 sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
 {
+	int result;
 
+	if (fd < 0 || fd >= OPEN_MAX) {
+	  return EBADF;
+	}
 
-	// kprintf("[SYS_READ] reading from fd: ", fd);
-	// kprintf("[SYS_READ] reading into %p: ", buf);
-	// kprintf("[SYS_READ] reading num bytes: %d", buflen);
-	// kprintf("[SYS_READ] total bytes read: %d", *sz);
-
-	file_read(fd, buf, buflen, sz);
+	result = file_read(fd, buf, buflen, sz);
+	if (result) {
+		return result;
+	}
 
 	return 0;
 
