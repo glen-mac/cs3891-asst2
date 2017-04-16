@@ -13,7 +13,7 @@
 /kern/compile
 /kernel-*
 /kernel
-/userland/lib/crt0/build
+/userland/**/build
 /sys161.conf
 /.gdb_history
 /DISK*
