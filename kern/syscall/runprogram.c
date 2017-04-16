@@ -44,6 +44,7 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <file.h>
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -58,6 +59,12 @@ runprogram(char *progname)
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
 	int result;
+
+	/* init the file descriptor table for the process */
+	result = file_table_init("con:", "con:", "con:");
+	if (result) {
+		return result;
+	}
 
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
