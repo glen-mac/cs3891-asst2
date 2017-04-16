@@ -66,6 +66,11 @@ sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 {
 	int result;
 
+	/* check to see if the file descriptor is sensible */
+	if (fd < 0 || fd >= OPEN_MAX) {
+	  return EBADF;
+	}
+
 	result = file_write(fd, buf, nbytes, sz);
 	if (result) {
 		return result;
@@ -85,6 +90,7 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
 {
 	int result;
 
+	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
 	  return EBADF;
 	}

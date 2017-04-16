@@ -92,7 +92,6 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	int result;
 	struct iovec iovec_tmp;
 	struct uio uio_tmp;
-	unsigned char buf_tmp[buflen];
 	
 	/* get the desired file an ensure it actually is open */
 	struct open_file *of = curthread->t_ft->openfiles[fd];
@@ -112,7 +111,7 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	struct vnode *vn = of->vn;
 	
 	/* initialize a uio with the read flag set, pointing into our buffer */
-	uio_kinit(&iovec_tmp, &uio_tmp, &buf_tmp, buflen, of->os, UIO_READ);
+	uio_uinit(&iovec_tmp, &uio_tmp, buf, buflen, of->os, UIO_READ);
 
 	/* read from vnode into our uio object */
 	result = VOP_READ(vn, &uio_tmp);
@@ -126,9 +125,6 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	/* update the seek pointer in the open file */
 	of->os = uio_tmp.uio_offset;
 	
-	/* copy data out to user space */
-	copyout(&buf_tmp,  buf, buflen);
-
 	/* release the lock of the file because we are done */
 	lock_release(of->fl);
 	
@@ -142,14 +138,25 @@ int
 file_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 {
 	int result;
-	struct open_file *of	= curthread->t_ft->openfiles[fd];
-	struct vnode *vn		= of->vn;
+	struct iovec iovec_tmp;
+	struct uio uio_tmp;
 
-	struct iovec	iovec_tmp;
-	struct uio		uio_tmp;
+	/* get the desired file an ensure it actually is open */
+	struct open_file *of = curthread->t_ft->openfiles[fd];
+	if (of == NULL) {
+	  return EBADF;
+	}
 
 	/* acquire lock on the file */
 	lock_acquire(of->fl);
+
+	/* see if the fd can be read */
+	if (of->am == O_RDONLY) {
+	  lock_release(of->fl);
+	  return EBADF;
+	}
+
+	struct vnode *vn = of->vn;
 
 	/* initialize a uio with the write flag set, pointing into our buffer */
 	uio_uinit(&iovec_tmp, &uio_tmp, buf, nbytes, of->os, UIO_WRITE);
