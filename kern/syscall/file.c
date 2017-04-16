@@ -71,6 +71,7 @@ file_open(char *filename, int flags, mode_t mode, int *fd)
 	return EMFILE;
 }
 
+
 /*
  * file_read
  * system level function from reading from a vnode.
@@ -87,6 +88,7 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 
 	struct iovec	iovec_tmp;
 	struct uio		uio_tmp;
+
 	unsigned char	buf_tmp[buflen];
 	
 	/* initialize a uio with the read flag set, pointing into our buffer */
@@ -106,6 +108,43 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	return 0;
 }
 
+/*
+ * Write system call: write to a file.
+ */
+int 
+file_write(int fd, userptr_t buf, size_t nbytes, int *sz)
+{
+	int result;
+	struct open_file *of	= curthread->t_ft->openfiles[fd];
+	struct vnode *vn		= of->vn;
+
+	struct iovec	iovec_tmp;
+	struct uio		uio_tmp;
+
+	/* acquire lock on the file */
+	lock_acquire(of->fl);
+
+	/* initialize a uio with the write flag set, pointing into our buffer */
+	uio_uinit(&iovec_tmp, &uio_tmp, buf, nbytes, of->os, UIO_WRITE);
+
+	/* write into vnode from our uio object */
+	result = VOP_WRITE(vn, &uio_tmp);
+	if (result) {
+		lock_release(of->fl);
+		return result;
+	}
+
+	/* find the number of bytes written */
+	*sz = uio_tmp.uio_offset - of->os;
+
+	/* update the seek pointer in the open file */
+	of->os = uio_tmp.uio_offset;
+
+	/* release the lock on the file */
+	lock_release(of->fl);
+  
+  return 0;
+}
 
 /* 
  * file_table_init
@@ -114,7 +153,6 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
  * free positons may be done when opening files. It also creates the
  * stdin, stdout and stderror file descriptors.
  */
-
 int file_table_init(const char *stdin_path, const char *stdout_path,
 		const char *stderr_path)
 {

@@ -32,6 +32,9 @@ struct file_table {
 /* opens a file using the VFS and stores the result in the thread file table */
 int file_open(char *filename, int flags, mode_t mode, int *fd);
 
+/* write to a file stored in the file descriptor table */
+int file_write(int fd, userptr_t buf, size_t nbytes, int *sz);
+
 /* reads from a file and stores the result in buf */
 int file_read(int fd, userptr_t buf, size_t buflen, int *sz);
 

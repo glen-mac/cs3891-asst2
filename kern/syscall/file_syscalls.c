@@ -56,6 +56,16 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd)
 }
 
 
+/*
+ * Write system call: write to a file.
+ */
+int 
+sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
+{
+	file_write(fd, buf, nbytes, sz);
+	return 0;
+}
+
 
 /*
  * Read system call: read from a file.
@@ -77,4 +87,5 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	return 0;
 
 }
+
 
