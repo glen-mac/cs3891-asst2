@@ -42,11 +42,13 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd)
 	char fn[PATH_MAX];
 	int result;
 
+	/* copy file name from user to kernel space */
 	result = copyinstr(filename, fn, PATH_MAX, NULL);
 	if (result) {
 		return result;
 	}
 
+	/* call system function to open file */
 	result = file_open(fn, flags, mode, fd);
 	if (result) {
 		return result;

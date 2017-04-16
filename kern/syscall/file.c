@@ -24,11 +24,24 @@
 int 
 file_open(char *filename, int flags, mode_t mode, int *fd) 
 {
-	int i;
+	int i, result;
+	struct vnode *vn;
+
+	/* check if flags are actual flags */
+	if (flags != O_RDONLY && flags != O_WRONLY && flags != O_RDWR) {
+	  return EINVAL;
+	}
+
+	/* open the vnode */
+	result = vfs_open(filename, flags, mode, &vn);
+	if (result) {
+		return result;
+	}
 
 	/* create new file record */
 	struct open_file *of = kmalloc(sizeof(struct open_file));
 	if (of == NULL) {
+		vfs_close(vn);
 		return ENOMEM;
 	}
 
@@ -38,23 +51,17 @@ file_open(char *filename, int flags, mode_t mode, int *fd)
 	/* create the lock for the file for multi processes */
 	struct lock *lk = lock_create("file_lock");
 	if (lk == NULL) {
+		vfs_close(vn);
 		kfree(of);
 		return ENOMEM;
 	}
 
-	/* open the vnode */
-	struct vnode *vn;
-	int fopen_res = vfs_open(filename, flags, mode, &vn);
-	if (fopen_res) {
-		lock_destroy(lk);
-		kfree(of);
-	}
-
 	/* make all the assignments to the file */
-	of->vn = vn;
-	of->fl = lk;
-	of->rc = 1;
-	of->am = flags & O_ACCMODE;
+	of->vn = vn;						/* assign vnode			*/
+	of->fl = lk;						/* assign file lock		*/
+	of->rc = 1;							/* refcount starts as 1 */
+	of->os = 0;							/* initial offset is 0	*/
+	of->am = flags & O_ACCMODE;			/* assign access mode	*/
 
 	/* find the next available file descriptor */
 	for (i = 0; i < OPEN_MAX; i++) {
