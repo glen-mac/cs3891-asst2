@@ -35,7 +35,8 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
-
+#include <endian.h>
+#include <copyinout.h>
 
 /*
  * System call dispatcher.
@@ -80,7 +81,11 @@ syscall(struct trapframe *tf)
 {
 	int callno;
 	int32_t retval;
+        off_t retval64;
 	int err;
+        
+        uint64_t offset;    /* unsigned 64bit val used for lseek offset */
+        int whence;         /* whence value copied from user stack */
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -128,6 +133,12 @@ syscall(struct trapframe *tf)
                 err = sys_dup2((int)tf->tf_a0, (int)tf->tf_a1, &retval);
                 break;
 
+        case SYS_lseek:
+                join32to64(tf->tf_a2, tf->tf_a3, &offset);
+                copyin((userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
+                err = sys_lseek((int)tf->tf_a0, offset, whence, &retval64);
+                break;
+
         case SYS_close:
                 err = sys_close((int)tf->tf_a0);
                 break;
@@ -150,7 +161,11 @@ syscall(struct trapframe *tf)
 	}
 	else {
 		/* Success. */
-		tf->tf_v0 = retval;
+		if (callno == SYS_lseek) {
+                        split64to32(retval64, &tf->tf_v0, &tf->tf_v1);
+                } else {
+                        tf->tf_v0 = retval;
+                }
 		tf->tf_a3 = 0;      /* signal no error */
 	}
 

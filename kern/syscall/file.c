@@ -134,7 +134,8 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	/* read from vnode into our uio object */
 	result = VOP_READ(vn, &uio_tmp);
 	if (result) {
-		return result;
+	    lock_release(of->fl);
+	    return result;
 	}
 
 	/* set the amount of bytes read */

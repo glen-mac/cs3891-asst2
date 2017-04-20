@@ -35,12 +35,15 @@
 #include <proc.h>
 #include <synch.h>
 #include <current.h>
+#include <vnode.h>
+#include <kern/seek.h>
+#include <kern/stat.h>
 
 /*
  * Open system call: open a file.
  */
 int 
-sys_open(userptr_t filename, int flags, mode_t mode, int *fd)
+sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret)
 {
 	char fn[PATH_MAX];
 	int result;
@@ -52,7 +55,7 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd)
 	}
 
 	/* call system function to open file */
-	result = file_open(fn, flags, mode, fd);
+	result = file_open(fn, flags, mode, fd_ret);
 	if (result) {
 		return result;
 	}
@@ -168,4 +171,75 @@ int
 sys_close(int fd)
 {
 	return file_close(fd);
+}
+
+
+/*
+ * sys_lseek
+ * shift the offset within an open file object
+ */
+int
+sys_lseek(int fd, off_t pos, int whence, off_t *npos)
+{
+	/* check to see if the file descriptor is sensible */
+	if (fd < 0 || fd >= OPEN_MAX) {
+	  return EBADF;
+	}
+	
+	/* check to see if whence is a legit value */
+	if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
+		return EINVAL;
+	}
+
+	/* get the file index */
+	int of_index = curproc->fd_t->fd_entries[fd];
+	
+	/* check if fd is closed */
+	if (of_index == FILE_CLOSED) {
+		return EBADF;
+	}
+
+	/* get the actual file from the open file table */
+	struct open_file *of = of_t->openfiles[of_index];
+
+	/* lock the file so we can read and access it */
+	lock_acquire(of->fl);
+
+	/* check if the file is a device */
+	if (!VOP_ISSEEKABLE(of->vn)) {
+		lock_release(of->fl);
+		return ESPIPE;
+	}
+
+	struct stat of_stat;	/* stat of struct to find file size */
+	int og_pos = of->os;	/* original seek position to restore if needed */
+
+	/* determine new position */
+	switch(whence)
+	{
+	case SEEK_SET:
+		of->os = pos;
+		break;
+	case SEEK_CUR:
+		of->os = of->os + pos;
+		break;
+	case SEEK_END:
+		VOP_STAT(of->vn, &of_stat);
+		of->os = pos + of_stat.st_size;
+		break;
+	}
+
+	/* the seek would have been negative */
+	if (of->os < 0) {
+		of->os = og_pos;
+		lock_release(of->fl);
+		return EINVAL;
+	}
+
+	/* assign new position */
+	*npos = of->os;
+
+	lock_release(of->fl);
+
+	return 0;
 }
