@@ -27,6 +27,7 @@ struct fd_table {
 
 /* global open file table entry */
 struct open_file {
+        struct lock *oft_l;             /* open file table lock */
 	struct vnode *vn;		/* the vnode this file represents */
 	struct lock *fl;		/* file lock for accessing */
 	int am;			        /* the access mode of this file	*/
