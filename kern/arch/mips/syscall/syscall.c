@@ -128,6 +128,10 @@ syscall(struct trapframe *tf)
                 err = sys_dup2((int)tf->tf_a0, (int)tf->tf_a1, &retval);
                 break;
 
+        case SYS_close:
+                err = sys_close((int)tf->tf_a0);
+                break;
+
         default:
                 kprintf("Unknown syscall %d\n", callno);
                 err = ENOSYS;

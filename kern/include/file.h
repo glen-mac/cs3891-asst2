@@ -51,6 +51,9 @@ int file_write(int fd, userptr_t buf, size_t nbytes, int *sz);
 /* reads from a file and stores the result in buf */
 int file_read(int fd, userptr_t buf, size_t buflen, int *sz);
 
+/* closes an open file */
+int file_close(int fd);
+
 /* checks if a table exists for the current thread and creates one */
 int file_table_init(const char *stdin_path, const char *stdout_path,
 		const char *stderr_path);

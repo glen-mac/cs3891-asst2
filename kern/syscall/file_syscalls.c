@@ -130,17 +130,42 @@ sys_dup2(int oldfd, int newfd, int *fd_ret)
 	/* acquire lock for fd_t because we are modifying it */
 	lock_acquire(curproc->fd_t->fdt_l);
 
+	struct fd_table *fd_tab = curproc->fd_t;
+	int old_of = fd_tab->fd_entries[oldfd];
+	int new_of = fd_tab->fd_entries[newfd];
+
+	/* if we are trying to dup from a closed FD */
+	if (old_of == -1) {
+		lock_release(curproc->fd_t->fdt_l);
+		return EBADF;
+	}
+
+	/* increment reference count */
+	struct open_file *of = of_t->openfiles[old_of];
+	lock_acquire(of->fl);
+	of->rc = of->rc + 1;
+	lock_release(of->fl);
+
 	/* if newfd is currently open, close it */
-	if (curproc->fd_t->fd_entries[newfd] == -1) {
+	if (new_of != -1) {
 		file_close(newfd);
-		//return EBADF;
 	}
 
 	/* assign new open file table reference to new fd */
 	curproc->fd_t->fd_entries[newfd] = curproc->fd_t->fd_entries[oldfd];
 
+	/* release exclusive access to the process file descriptor table */
 	lock_release(curproc->fd_t->fdt_l);
 
 	return 0;
 }
 
+/* 
+ * sys_close
+ * closes a file
+ */
+int
+sys_close(int fd)
+{
+	return file_close(fd);
+}

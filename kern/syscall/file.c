@@ -27,11 +27,6 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
 	int i, result, fd = -1, of = -1;
 	struct vnode *vn;
 
-	/* check if flags are actual flags */
-	if (flags != O_RDONLY && flags != O_WRONLY && flags != O_RDWR) {
-	  return EINVAL;
-	}
-
 	/* open the vnode */
 	result = vfs_open(filename, flags, mode, &vn);
 	if (result) {
@@ -207,6 +202,53 @@ file_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 	lock_release(of->fl);
   
   return 0;
+}
+
+/* file_close
+ * closes a file described by a file descriptor
+ */
+int
+file_close(int fd)
+{
+	/* check to see file to close is legit */
+	if (fd < 0 || fd >= OPEN_MAX) {
+	      return EBADF;
+	}
+
+	/* check to see the open file index is legit */
+	int of_entry = curproc->fd_t->fd_entries[fd];
+	if (of_entry < 0 || of_entry > OPEN_MAX) {
+	      return EBADF;
+	}
+
+	/* get the open file we wish to close */
+	struct open_file *of = of_t->openfiles[of_entry];
+	if (of == NULL) {
+	  return EBADF;
+	}
+
+	/* get exclusive access to the fd table */
+	lock_acquire(curproc->fd_t->fdt_l);
+	/* close the file for this process */
+	curproc->fd_t->fd_entries[fd] = FILE_CLOSED;
+
+	/* get exclusive access to the file */
+	lock_acquire(of->fl);
+	if (of->rc == 1) {
+	    /* free memory */
+	    lock_release(of->fl);
+	    lock_destroy(of->fl);
+	    vfs_close(of->vn);
+	    kfree(of);
+	} else {
+	    of->rc = of->rc - 1;
+	    lock_release(of->fl);
+	}
+
+	/* release exclusive access to the fd table */
+	lock_release(curproc->fd_t->fdt_l);
+
+	return 0;
 }
 
 /* 
