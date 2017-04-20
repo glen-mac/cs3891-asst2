@@ -105,7 +105,6 @@ struct thread {
 	/*
 	 * Public fields
 	 */
-	struct file_table *t_ft;	/* The file table for the thread */
 
 	/* add more here as needed */
 };

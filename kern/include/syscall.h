@@ -60,6 +60,7 @@ int sys_reboot(int code);
 int sys_open(userptr_t filename, int flags, mode_t mode, int *fd);
 int sys_write(int fd, userptr_t buf, size_t nbytes, int *sz);
 int sys_read(int fd, userptr_t buf, size_t buflen, int *sz);
+int sys_dup2(int oldfd, int newfd, int *fd_ret);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 #endif /* _SYSCALL_H_ */

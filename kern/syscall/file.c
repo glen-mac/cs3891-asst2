@@ -14,7 +14,7 @@
 #include <file.h>
 #include <syscall.h>
 #include <copyinout.h>
-
+#include <proc.h>
 
 
 /*
@@ -22,9 +22,9 @@
  * deals within opening a file on the kernel side.
  */
 int 
-file_open(char *filename, int flags, mode_t mode, int *fd) 
+file_open(char *filename, int flags, mode_t mode, int *fd_ret) 
 {
-	int i, result;
+	int i, result, fd = -1, of = -1;
 	struct vnode *vn;
 
 	/* check if flags are actual flags */
@@ -38,44 +38,61 @@ file_open(char *filename, int flags, mode_t mode, int *fd)
 		return result;
 	}
 
+	/* get this process' file descriptor table */
+        struct fd_table *fd_t = curproc->fd_t;
+
+	/* find the next available file descriptor in process table */
+        for (i = 0; i < OPEN_MAX; i++) {
+                if (fd_t->fd_entries[i] == FILE_CLOSED) {
+                        fd = i;
+                        break;
+                }
+        }
+
+        /* find the next available spot in global open file table */
+        for (i = 0; i < OPEN_MAX; i++) {
+                if (of_t->openfiles[i] == NULL) {
+                        of = i;
+                        break;
+                }
+        }
+
+        /* file descriptor table and/or open file table is full */
+        if (fd == -1 || of == -1) {
+		vfs_close(vn);
+                return EMFILE;
+        }
+
 	/* create new file record */
-	struct open_file *of = kmalloc(sizeof(struct open_file));
-	if (of == NULL) {
+	struct open_file *of_entry = kmalloc(sizeof(struct open_file));
+	if (of_entry == NULL) {
 		vfs_close(vn);
 		return ENOMEM;
 	}
-
-	/* get this thread's file table */
-	struct file_table *ft = curthread->t_ft;
 
 	/* create the lock for the file for multi processes */
 	struct lock *lk = lock_create("file_lock");
 	if (lk == NULL) {
 		vfs_close(vn);
-		kfree(of);
+		kfree(of_entry);
 		return ENOMEM;
 	}
 
+        /* initialise file descriptor entry */
+        fd_t->fd_entries[fd] = of;
+        
 	/* make all the assignments to the file */
-	of->vn = vn;						/* assign vnode			*/
-	of->fl = lk;						/* assign file lock		*/
-	of->rc = 1;							/* refcount starts as 1 */
-	of->os = 0;							/* initial offset is 0	*/
-	of->am = flags & O_ACCMODE;			/* assign access mode	*/
+	of_entry->vn = vn;			    /* assign vnode */
+	of_entry->fl = lk;			    /* assign file lock	*/
+	of_entry->rc = 1;			    /* refcount starts as 1 */
+	of_entry->am = flags & O_ACCMODE;	    /* assign access mode */
+	of_entry->os = 0;			    /* inital offset is 0 */
+        of_t->openfiles[of] = of_entry;
 
-	/* find the next available file descriptor */
-	for (i = 0; i < OPEN_MAX; i++) {
-		if (ft->openfiles[i] == NULL) {
-			ft->openfiles[i] = of;
-			*fd = i;
-			return 0;
-		}
-	}
+	/* assign the return value */
+	*fd_ret = fd; 
 
-	/* The process's file table was full, or a process-specific limit on open
-	 * files was reached.
-	 */
-	return EMFILE;
+   	return 0;
 }
 
 
@@ -93,8 +110,13 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	struct iovec iovec_tmp;
 	struct uio uio_tmp;
 	
-	/* get the desired file an ensure it actually is open */
-	struct open_file *of = curthread->t_ft->openfiles[fd];
+	/* get the desired file and ensure it is actually open */
+	int of_entry = curproc->fd_t->fd_entries[fd];
+	if (of_entry < 0 || of_entry > OPEN_MAX) {
+	  return EBADF;
+	}
+
+	struct open_file *of = of_t->openfiles[of_entry];
 	if (of == NULL) {
 	  return EBADF;
 	}
@@ -108,6 +130,7 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	  return EBADF;
 	}
 
+	/* get open file vnode for reading from */
 	struct vnode *vn = of->vn;
 	
 	/* initialize a uio with the read flag set, pointing into our buffer */
@@ -141,8 +164,13 @@ file_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 	struct iovec iovec_tmp;
 	struct uio uio_tmp;
 
-	/* get the desired file an ensure it actually is open */
-	struct open_file *of = curthread->t_ft->openfiles[fd];
+	/* get the desired file and ensure it is actually open */
+	int of_entry = curproc->fd_t->fd_entries[fd];
+	if (of_entry < 0 || of_entry > OPEN_MAX) {
+	  return EBADF;
+	}
+	
+	struct open_file *of = of_t->openfiles[of_entry];
 	if (of == NULL) {
 	  return EBADF;
 	}
@@ -150,12 +178,13 @@ file_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 	/* acquire lock on the file */
 	lock_acquire(of->fl);
 
-	/* see if the fd can be read */
+	/* see if the fd can be written to */
 	if (of->am == O_RDONLY) {
 	  lock_release(of->fl);
 	  return EBADF;
 	}
 
+	/* get open file vnode for writing to */
 	struct vnode *vn = of->vn;
 
 	/* initialize a uio with the write flag set, pointing into our buffer */
@@ -193,15 +222,33 @@ int file_table_init(const char *stdin_path, const char *stdout_path,
 	int i, fd, result;
 	char path[PATH_MAX];
 
-	/* if there is no file table for thread - make one! */
-	curthread->t_ft = kmalloc(sizeof(struct file_table));
-	if (curthread->t_ft == NULL) {
+        /* if there is no open file table created yet, create it */
+        if (of_t == NULL) {
+		of_t = kmalloc(sizeof(struct file_table));
+		if (of_t == NULL) {
+			return ENOMEM;
+		}
+		for (i = 0; i < OPEN_MAX; i++) {
+			of_t->openfiles[i] = NULL;
+                }
+        }
+
+	/* if there is no file descriptor table for proc - make one! */
+        curproc->fd_t = kmalloc(sizeof(struct fd_table));
+        if (curproc->fd_t == NULL) {
+		return ENOMEM;
+        }
+
+	/* create the lock for the file for multi processes */
+	struct lock *lk = lock_create("fd_table_lock");
+	if (lk == NULL) {
 		return ENOMEM;
 	}
-	
+	curproc->fd_t->fdt_l = lk;
+
 	/* empty the new table */
 	for (i = 0; i < OPEN_MAX; i++) {
-		curthread->t_ft->openfiles[i] = NULL;
+		curproc->fd_t->fd_entries[i] = FILE_CLOSED;
 	}
 
 	/* create stdin file desc */

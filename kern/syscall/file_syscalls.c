@@ -32,6 +32,9 @@
 #include <copyinout.h>
 #include <syscall.h>
 #include <kern/errno.h>
+#include <proc.h>
+#include <synch.h>
+#include <current.h>
 
 /*
  * Open system call: open a file.
@@ -104,4 +107,40 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
 
 }
 
+/*
+ * sys_dup2
+ * this syscall duplicates one file descriptor to another
+ */
+int
+sys_dup2(int oldfd, int newfd, int *fd_ret)
+{
+	/* check the file descriptors make sense */
+	if (oldfd < 0 || oldfd >= OPEN_MAX || newfd < 0 || newfd >= OPEN_MAX) {
+	  return EBADF;
+	}
+	
+	/* assign return value for syscall */
+	*fd_ret = newfd;
+	
+	/* if both fd are the same, return */
+	if (oldfd == newfd) {
+		return 0;
+	}
+
+	/* acquire lock for fd_t because we are modifying it */
+	lock_acquire(curproc->fd_t->fdt_l);
+
+	/* if newfd is currently open, close it */
+	if (curproc->fd_t->fd_entries[newfd] == -1) {
+		file_close(newfd);
+		//return EBADF;
+	}
+
+	/* assign new open file table reference to new fd */
+	curproc->fd_t->fd_entries[newfd] = curproc->fd_t->fd_entries[oldfd];
+
+	lock_release(curproc->fd_t->fdt_l);
+
+	return 0;
+}
 
