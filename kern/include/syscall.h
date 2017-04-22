@@ -57,6 +57,8 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
  */
 
 int sys_reboot(int code);
+int sys_fork(struct trapframe *tf, pid_t *pid);
+int sys_getpid(int *pid);
 int sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret);
 int sys_write(int fd, userptr_t buf, size_t nbytes, int *sz);
 int sys_read(int fd, userptr_t buf, size_t buflen, int *sz);

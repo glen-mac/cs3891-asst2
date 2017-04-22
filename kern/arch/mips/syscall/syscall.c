@@ -109,6 +109,14 @@ syscall(struct trapframe *tf)
                 err = sys_reboot(tf->tf_a0);
                 break;
 
+        case SYS_fork:
+                err = sys_fork(tf, &retval);
+                break;
+        
+        case SYS_getpid:
+                err = sys_getpid(&retval);
+                break;
+
         case SYS_open:
                 err = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1,
                                 (mode_t)tf->tf_a2, &retval);
@@ -193,5 +201,19 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+  /* shift the IP forward to avoid fork bombing lol */
+  tf->tf_epc += 4;
+  /* signify no error */
+  tf->tf_a3 = 0;
+
+  /* Make sure the syscall code didn't forget to lower spl */
+  KASSERT(curthread->t_curspl == 0);
+  /* ...or leak any spinlocks */
+  KASSERT(curthread->t_iplhigh_count == 0);
+
+  /* enter userland for the first time */
+  mips_usermode(tf);
+
+  /* enter_forked_process does not return. */
+  panic("enter_forked_process returned\n");
 }
