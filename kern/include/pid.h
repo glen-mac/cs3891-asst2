@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009, 2010
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,46 +28,30 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYSCALL_H_
-#define _SYSCALL_H_
-
-
-#include <cdefs.h> /* for __DEAD */
-struct trapframe; /* from <machine/trapframe.h> */
-
 /*
- * The system call dispatcher.
+ * Core kernel-level pid management system.
  */
+#include <limits.h>
 
-void syscall(struct trapframe *tf);
+#define PID_INVALID 0xcafebabe
+#define PID_BOOT 1
 
-/*
- * Support functions.
- */
-
-/* Helper for fork(). You write this. */
-void enter_forked_process(struct trapframe *tf);
-
-/* Enter user mode. Does not return. */
-__DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
-		       vaddr_t stackptr, vaddr_t entrypoint);
+/* PID table entry */
+struct proc_pid {
+  pid_t pid_id;           /* process pid ID */
+  pid_t ppid_id;          /* process' parent pid ID */
+  int pid_estatus;        /* process exit status */
+  int pid_exited;         /* has process exited? */
+  struct cv *pid_cv;      /* pid condition variable */
+};
 
 
-/*
- * Prototypes for IN-KERNEL entry points for system call implementations.
- */
+pid_t pid_create(pid_t ppid);
+pid_t pid_next(void);
+pid_t pid_wait(pid_t pid, pid_t ppid, int *exit_status);
+void pidtable_init(void);
+void pidtable_destroy(void);
+void pid_destroy(struct proc_pid *pp);
+void pid_exit(pid_t pid, int exit_status);
 
-int sys_reboot(int code);
-int sys__exit(int exit_status, int *retval);
-int sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid);
-int sys_fork(struct trapframe *tf, pid_t *pid);
-int sys_getpid(pid_t *pid);
-int sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret);
-int sys_write(int fd, userptr_t buf, size_t nbytes, int *sz);
-int sys_read(int fd, userptr_t buf, size_t buflen, int *sz);
-int sys_dup2(int oldfd, int newfd, int *fd_ret);
-int sys_close(int fd);
-int sys_lseek(int fd, off_t pos, int whence, off_t *npos); 
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
-#endif /* _SYSCALL_H_ */

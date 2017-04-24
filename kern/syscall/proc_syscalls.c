@@ -57,8 +57,9 @@
 #include <syscall.h>
 #include <mips/trapframe.h>
 #include <addrspace.h>
-
-
+#include <proc.h>
+#include <pid.h>
+#include <kern/wait.h>
 
 void child_execute(void *tf, long unsigned int pid);
 
@@ -124,23 +125,70 @@ sys_fork(struct trapframe *tf, pid_t *pid)
   new_proc->p_addrspace = as_child;
 
   /* fork thread, giving entry point */
-  result = thread_fork(curthread->t_name, new_proc, &child_execute, 
+  result = thread_fork("new forked process", new_proc, &child_execute, 
       tf_child, 0);
   if (result) {
     return result;
   }
 
   /* return current pid as the parent */
-  *pid = 1; //curproc->p_pid;
+  *pid = new_proc->p_pid;
 
   return 0;
 }
 
 
 int
-sys_getpid(int *pid)
+sys_getpid(pid_t *pid)
 {
-  *pid = 3;
+  *pid = curproc->p_pid;
   return 0;
 }
 
+int
+sys__exit(int exit_status, int *retval)
+{
+  pid_exit(curproc->p_pid, exit_status);
+  *retval = 0;
+  return 0;
+}
+
+int
+sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid)
+{
+  int result;
+
+  /* sanity checks for pid number */
+  if (pid < PID_MIN || pid > PID_MAX) {
+    return ESRCH;
+  }
+
+  /* ensure flags are legit */
+  if (options != 0 && options != WUNTRACED && options != WNOHANG) {
+    return EINVAL;
+  }
+
+  //kprintf("waiting on pid %d from pid %d\n", (int)pid, (int)curproc->p_pid);
+
+  (void)options;        /* pretend we use options */
+  int estatus;          /* status temp variable to write back to userland */
+  *retPid = (int)pid;   /* pid variable to pass back to user (set first) */ 
+  
+  /* wait on process to end */
+  result = pid_wait(pid, curproc->p_pid, &estatus);
+  
+  /* if there was an error, return -1 */
+  if (result) {
+    *retPid = -1;
+  }
+  
+  /* check if status addr is null */
+  if (status != NULL) {
+    result = copyout(&estatus, status, sizeof(estatus));
+    if (result) {
+      return result;
+    }
+  }
+
+  return result;
+}

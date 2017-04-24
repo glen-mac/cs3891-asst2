@@ -39,6 +39,7 @@
 #include <synch.h>
 #include <thread.h>
 #include <proc.h>
+#include <pid.h>
 #include <vfs.h>
 #include <sfs.h>
 #include <syscall.h>
@@ -814,7 +815,7 @@ void
 menu(char *args)
 {
 	char buf[64];
-
+	
 	menu_execute(args, 1);
 
 	while (1) {

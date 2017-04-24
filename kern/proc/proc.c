@@ -48,6 +48,7 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <pid.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -182,6 +183,7 @@ proc_bootstrap(void)
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
+	kproc->p_pid = 1;
 }
 
 /*
@@ -217,6 +219,9 @@ proc_create_runprogram(const char *name)
 		newproc->p_cwd = curproc->p_cwd;
 	}
 	spinlock_release(&curproc->p_lock);
+
+	/* init the pid object */
+	newproc->p_pid = pid_create(curproc->p_pid);
 
 	return newproc;
 }
