@@ -118,7 +118,7 @@ syscall(struct trapframe *tf)
                 break;
         
         case SYS__exit:
-                err = sys__exit((int)tf->tf_a0, &retval);
+                err = sys__exit((int)tf->tf_a0);
                 break;
 
         case SYS_waitpid:
@@ -153,7 +153,10 @@ syscall(struct trapframe *tf)
         case SYS_lseek:
                 join32to64(tf->tf_a2, tf->tf_a3, &offset);
                 copyin((userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
-                err = sys_lseek((int)tf->tf_a0, offset, whence, &retval64);
+                err = sys_lseek((int)tf->tf_a0, (off_t)offset, whence, 
+                    &retval64);
+                
+
                 break;
 
         case SYS_close:
@@ -179,6 +182,7 @@ syscall(struct trapframe *tf)
 	else {
 		/* Success. */
 		if (callno == SYS_lseek) {
+                  kprintf("lseek return value is %lld\n", retval64);
                         split64to32(retval64, &tf->tf_v0, &tf->tf_v1);
                 } else {
                         tf->tf_v0 = retval;

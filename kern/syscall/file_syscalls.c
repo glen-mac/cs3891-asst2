@@ -212,7 +212,7 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 	}
 
 	struct stat of_stat;	/* stat of struct to find file size */
-	int og_pos = of->os;	/* original seek position to restore if needed */
+	off_t og_pos = of->os;	/* original seek position to restore if needed */
 
 	/* determine new position */
 	switch(whence)
@@ -235,6 +235,7 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 		lock_release(of->fl);
 		return EINVAL;
 	}
+
 
 	/* assign new position */
 	*npos = of->os;

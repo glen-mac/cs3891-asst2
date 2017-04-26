@@ -57,7 +57,7 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
  */
 
 int sys_reboot(int code);
-int sys__exit(int exit_status, int *retval);
+int sys__exit(int exit_status);
 int sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid);
 int sys_fork(struct trapframe *tf, pid_t *pid);
 int sys_getpid(pid_t *pid);

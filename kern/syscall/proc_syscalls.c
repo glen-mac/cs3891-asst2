@@ -146,11 +146,10 @@ sys_getpid(pid_t *pid)
 }
 
 int
-sys__exit(int exit_status, int *retval)
+sys__exit(int exit_status)
 {
   pid_exit(curproc->p_pid, exit_status);
-  *retval = 0;
-  return 0;
+  panic("sys_exit: unexpected return from thread_exit() \n");
 }
 
 int
@@ -168,24 +167,26 @@ sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid)
     return EINVAL;
   }
 
-  //kprintf("waiting on pid %d from pid %d\n", (int)pid, (int)curproc->p_pid);
 
   (void)options;        /* pretend we use options */
   int estatus;          /* status temp variable to write back to userland */
   *retPid = (int)pid;   /* pid variable to pass back to user (set first) */ 
   
+
   /* wait on process to end */
   result = pid_wait(pid, curproc->p_pid, &estatus);
   
   /* if there was an error, return -1 */
   if (result) {
     *retPid = -1;
+    return result;
   }
   
   /* check if status addr is null */
   if (status != NULL) {
     result = copyout(&estatus, status, sizeof(estatus));
     if (result) {
+      *retPid = -1;
       return result;
     }
   }

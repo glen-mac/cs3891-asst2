@@ -234,8 +234,14 @@ file_close(int fd)
                 return EBADF;
         }
 
-        /* get exclusive access to the fd table */
-        lock_acquire(curproc->fd_t->fdt_l);
+        /* flag to know if we have been called from another syscall */
+        int calledFromSys = 1;
+
+        if (!lock_do_i_hold(curproc->fd_t->fdt_l)) {
+                /* get exclusive access to the fd table */
+                calledFromSys = 0;
+                lock_acquire(curproc->fd_t->fdt_l);
+        }
 
         /* check to see the open file index is legit */
         int of_entry = curproc->fd_t->fd_entries[fd];
@@ -257,20 +263,25 @@ file_close(int fd)
         /* close the file for this process */
         curproc->fd_t->fd_entries[fd] = FILE_CLOSED;
 
+        /* lock the open file to read from it */
+
         if (of->rc == 1) {
                 /* free memory */
-                lock_release(of_t->oft_l);
-                lock_destroy(of->fl);
                 vfs_close(of->vn);
+                lock_destroy(of->fl);
                 kfree(of);
         } else {
                 of->rc = of->rc - 1;
-                lock_release(of->fl);
         }
 
         /* release exclusive access to the fd table */
         /* lock_release(of->fl); -- already performed in the above if statements */
-        lock_release(curproc->fd_t->fdt_l);
+        lock_release(of_t->oft_l);
+
+        /* if we weren't called from another syscall */
+        if (!calledFromSys) {
+                lock_release(curproc->fd_t->fdt_l);
+        }
 
         return 0;
 }

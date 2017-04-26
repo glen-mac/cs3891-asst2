@@ -65,6 +65,9 @@ pidtable_init()
 {
   /* create the pid table */
   pid_table = kmalloc(sizeof(struct proc_pid) * (PID_MAX+1));
+  int i;
+  for (i = 0; i < PID_MAX; i++)
+    pid_table[i] = NULL;
   pt_lock = lock_create("pid stat lock");
   pid_alloc = 0;
   pid_top = PID_MIN;
@@ -89,9 +92,11 @@ pid_create(pid_t ppid)
 {
   lock_acquire(pt_lock);
 
+
   /* check if we can allocate */
   pid_t pid = pid_next();
   if (pid == -1) {
+    lock_release(pt_lock);
     return -1;
   }
   
@@ -138,7 +143,7 @@ pid_next()
     }
   }
   /* loop back to the start */
-  if (pid_top > PID_MAX) {
+  if (retval == -1) {
     pid_top = PID_MIN;
   }
   return retval;
@@ -166,7 +171,6 @@ pid_destroy(struct proc_pid *pp)
 pid_t
 pid_wait(pid_t pid, pid_t ppid, int *exit_status)
 {
-
   lock_acquire(pt_lock);
 
   struct proc_pid *pp = pid_table[pid];
@@ -220,5 +224,7 @@ pid_exit(pid_t pid, int exit_status)
   cv_broadcast(pp->pid_cv, pt_lock);
 
   lock_release(pt_lock);
+
+  thread_exit();
 }
 

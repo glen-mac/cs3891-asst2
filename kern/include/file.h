@@ -31,7 +31,7 @@ struct open_file {
 	struct lock *fl;		/* file lock for accessing */
 	int am;			        /* the access mode of this file	*/
 	int rc;			        /* the reference count of this file */
-	int os;                         /* read offset within the file */
+	off_t os;                       /* read offset within the file */
 };
 
 /* global open file table */
