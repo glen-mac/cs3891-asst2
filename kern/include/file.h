@@ -13,28 +13,31 @@
 #define FILE_CLOSED     -1
 
 /* TO NOTE:
- * A file descriptor table can be owned by one process only, whereas an open file
- * may be owned by many processes - for example when a process forks().
+ * A file descriptor table can be owned by one process only, whereas an open 
+ * file may be owned by many processes - for example when a process forks().
  * Hence it is important to include a synchronisation primitive in the 
  * struct for the open file to be able to lock the use of it.
  */
 
 /* per-process file descriptor table */
-struct fd_table {
-	int fd_entries[OPEN_MAX];   /* array of of_t entries */
+struct fd_table
+{
+	int fd_entries[OPEN_MAX];	/* array of of_t entries */
 };
 
 /* global open file table entry */
-struct open_file {
-	struct vnode *vn;		/* the vnode this file represents */
-	int am;			        /* the access mode of this file	*/
-	int rc;			        /* the reference count of this file */
-	off_t os;                       /* read offset within the file */
+struct open_file
+{
+	struct vnode *vn;	/* the vnode this file represents */
+	int am;			/* the access mode of this file */
+	int rc;			/* the reference count of this file */
+	off_t os;		/* read offset within the file */
 };
 
 /* global open file table */
-struct file_table {
-        struct lock *oft_l;             /* open file table lock */
+struct file_table
+{
+	struct lock *oft_l;	/* open file table lock */
 	struct open_file *openfiles[OPEN_MAX];	/* array of open files */
 };
 
@@ -55,6 +58,6 @@ int file_close(int fd);
 
 /* checks if a table exists for the current thread and creates one */
 int file_table_init(const char *stdin_path, const char *stdout_path,
-		const char *stderr_path);
+		    const char *stderr_path);
 
 #endif /* _FILE_H_ */

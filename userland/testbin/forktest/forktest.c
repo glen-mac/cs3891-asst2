@@ -181,8 +181,6 @@ test(int nowait)
 	}
 	check();
 
-
-
 	/*
 	 * These must be called in reverse order to avoid waiting
 	 * improperly.
@@ -191,8 +189,6 @@ test(int nowait)
 	dowait(nowait, pid2);
 	dowait(nowait, pid1);
 	dowait(nowait, pid0);
-
-	printf("END OF THE FORKTEST\n\n\n");
 
 	putchar('\n');
 }

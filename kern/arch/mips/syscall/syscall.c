@@ -81,11 +81,11 @@ syscall(struct trapframe *tf)
 {
 	int callno;
 	int32_t retval;
-        off_t retval64;
+	off_t retval64;
 	int err;
-        
-        uint64_t offset;    /* unsigned 64bit val used for lseek offset */
-        int whence;         /* whence value copied from user stack */
+
+	uint64_t offset;	/* unsigned 64bit val used for lseek offset */
+	int whence;		/* whence value copied from user stack */
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -104,67 +104,67 @@ syscall(struct trapframe *tf)
 
 	retval = 0;
 
-        switch (callno) {
-        case SYS_reboot:
-                err = sys_reboot(tf->tf_a0);
-                break;
+	switch (callno) {
+	case SYS_reboot:
+		err = sys_reboot(tf->tf_a0);
+		break;
 
-        case SYS_fork:
-                err = sys_fork(tf, &retval);
-                break;
-        
-        case SYS_getpid:
-                err = sys_getpid(&retval);
-                break;
-        
-        case SYS__exit:
-                err = sys__exit((int)tf->tf_a0);
-                break;
+	case SYS_fork:
+		err = sys_fork(tf, &retval);
+		break;
 
-        case SYS_waitpid:
-                err = sys_waitpid((pid_t)tf->tf_a0, (userptr_t)tf->tf_a1, 
-                    (int)tf->tf_a2, &retval);
-                break;
+	case SYS_getpid:
+		err = sys_getpid(&retval);
+		break;
 
-        case SYS_open:
-                err = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1,
-                                (mode_t)tf->tf_a2, &retval);
-                break;
+	case SYS__exit:
+		err = sys__exit((int) tf->tf_a0);
+		break;
 
-        case SYS_write:
-                err = sys_write((int)tf->tf_a0, (userptr_t)tf->tf_a1,
-                                (size_t)tf->tf_a2, &retval);
-                break;
+	case SYS_waitpid:
+		err = sys_waitpid((pid_t) tf->tf_a0, (userptr_t) tf->tf_a1,
+				  (int) tf->tf_a2, &retval);
+		break;
 
-        case SYS_read:
-                err = sys_read((int)tf->tf_a0, (userptr_t)tf->tf_a1,
-                                (size_t)tf->tf_a2, &retval);
-                break;
+	case SYS_open:
+		err = sys_open((userptr_t) tf->tf_a0, (int) tf->tf_a1,
+			       (mode_t) tf->tf_a2, &retval);
+		break;
 
-        case SYS___time:
-                err = sys___time((userptr_t)tf->tf_a0,
-                                (userptr_t)tf->tf_a1);
-                break;
+	case SYS_write:
+		err = sys_write((int) tf->tf_a0, (userptr_t) tf->tf_a1,
+				(size_t) tf->tf_a2, &retval);
+		break;
 
-        case SYS_dup2:
-                err = sys_dup2((int)tf->tf_a0, (int)tf->tf_a1, &retval);
-                break;
+	case SYS_read:
+		err = sys_read((int) tf->tf_a0, (userptr_t) tf->tf_a1,
+			       (size_t) tf->tf_a2, &retval);
+		break;
 
-        case SYS_lseek:
-                join32to64(tf->tf_a2, tf->tf_a3, &offset);
-                copyin((userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
-                err = sys_lseek((int)tf->tf_a0, (off_t)offset, whence, 
-                    &retval64);
-                break;
+	case SYS___time:
+		err = sys___time((userptr_t) tf->tf_a0,
+				 (userptr_t) tf->tf_a1);
+		break;
 
-        case SYS_close:
-                err = sys_close((int)tf->tf_a0);
-                break;
+	case SYS_dup2:
+		err = sys_dup2((int) tf->tf_a0, (int) tf->tf_a1, &retval);
+		break;
 
-        default:
-                kprintf("Unknown syscall %d\n", callno);
-                err = ENOSYS;
-                break;
+	case SYS_lseek:
+		join32to64(tf->tf_a2, tf->tf_a3, &offset);
+		copyin((userptr_t) tf->tf_sp + 16, &whence, sizeof(int));
+		err = sys_lseek((int) tf->tf_a0, (off_t) offset, whence,
+				&retval64);
+		break;
+
+	case SYS_close:
+		err = sys_close((int) tf->tf_a0);
+		break;
+
+	default:
+		kprintf("Unknown syscall %d\n", callno);
+		err = ENOSYS;
+		break;
 	}
 
 
@@ -175,16 +175,17 @@ syscall(struct trapframe *tf)
 		 * code in errno.
 		 */
 		tf->tf_v0 = err;
-		tf->tf_a3 = 1;      /* signal an error */
+		tf->tf_a3 = 1;	/* signal an error */
 	}
 	else {
 		/* Success. */
 		if (callno == SYS_lseek) {
-                        split64to32(retval64, &tf->tf_v0, &tf->tf_v1);
-                } else {
-                        tf->tf_v0 = retval;
-                }
-		tf->tf_a3 = 0;      /* signal no error */
+			split64to32(retval64, &tf->tf_v0, &tf->tf_v1);
+		}
+		else {
+			tf->tf_v0 = retval;
+		}
+		tf->tf_a3 = 0;	/* signal no error */
 	}
 
 	/*
@@ -211,19 +212,19 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
-  /* shift the IP forward to avoid fork bombing lol */
-  tf->tf_epc += 4;
-  /* signify no error */
-  tf->tf_a3 = 0;
+	/* shift the IP forward to avoid fork bombing lol */
+	tf->tf_epc += 4;
+	/* signify no error */
+	tf->tf_a3 = 0;
 
-  /* Make sure the syscall code didn't forget to lower spl */
-  KASSERT(curthread->t_curspl == 0);
-  /* ...or leak any spinlocks */
-  KASSERT(curthread->t_iplhigh_count == 0);
+	/* Make sure the syscall code didn't forget to lower spl */
+	KASSERT(curthread->t_curspl == 0);
+	/* ...or leak any spinlocks */
+	KASSERT(curthread->t_iplhigh_count == 0);
 
-  /* enter userland for the first time */
-  mips_usermode(tf);
+	/* enter userland for the first time */
+	mips_usermode(tf);
 
-  /* enter_forked_process does not return. */
-  panic("enter_forked_process returned\n");
+	/* enter_forked_process does not return. */
+	panic("enter_forked_process returned\n");
 }

@@ -70,19 +70,19 @@ static void child_execute(void *tf, long unsigned int pid);
 static void
 child_execute(void *tf, long unsigned int pid)
 {
-  struct trapframe tf_new;
-  tf_new = *(struct trapframe *)tf;
-  
-  pid_t pid_new = (pid_t)pid;
+	struct trapframe tf_new;
+	tf_new = *(struct trapframe *) tf;
 
-  /* set the return value to 0 (child proc) */
-  tf_new.tf_v0 = pid_new;
+	pid_t pid_new = (pid_t) pid;
 
-  /* run enter func from syscall.c */
-  enter_forked_process(&tf_new);
+	/* set the return value to 0 (child proc) */
+	tf_new.tf_v0 = pid_new;
 
-  /* child_execute does not return. */
-  panic("child_execute returned\n");
+	/* run enter func from syscall.c */
+	enter_forked_process(&tf_new);
+
+	/* child_execute does not return. */
+	panic("child_execute returned\n");
 
 }
 
@@ -90,50 +90,50 @@ child_execute(void *tf, long unsigned int pid)
  * fork system call: fork process execution.
  */
 int
-sys_fork(struct trapframe *tf, pid_t *pid)
+sys_fork(struct trapframe *tf, pid_t * pid)
 {
-  int result;
+	int result;
 
-  /* create trapframe for the child */
-  struct trapframe *tf_child = kmalloc(sizeof(struct trapframe));
-  if (tf_child == NULL) {
-    return ENOMEM;
-  }
+	/* create trapframe for the child */
+	struct trapframe *tf_child = kmalloc(sizeof(struct trapframe));
+	if (tf_child == NULL) {
+		return ENOMEM;
+	}
 
-  /* copy the parent trapframe struct data into the child */
-  *tf_child = *tf;
+	/* copy the parent trapframe struct data into the child */
+	*tf_child = *tf;
 
-  /* create the address space for the child */
-  struct addrspace *as_child = NULL;
-  as_copy(curproc->p_addrspace, &as_child);
-  if (as_child == NULL) {
-    return ENOMEM;
-  }
+	/* create the address space for the child */
+	struct addrspace *as_child = NULL;
+	as_copy(curproc->p_addrspace, &as_child);
+	if (as_child == NULL) {
+		return ENOMEM;
+	}
 
-  /* create the new proc */
-  struct proc *new_proc = proc_create_runprogram(curproc->p_name);
-  if (new_proc == NULL) {
-    return ENOMEM;
-  }
+	/* create the new proc */
+	struct proc *new_proc = proc_create_runprogram(curproc->p_name);
+	if (new_proc == NULL) {
+		return ENOMEM;
+	}
 
-  /* create the file descriptor table as a copy of the parent's */
-  new_proc->fd_t = kmalloc(sizeof(struct fd_table));
-  *(new_proc->fd_t) = *curproc->fd_t;
+	/* create the file descriptor table as a copy of the parent's */
+	new_proc->fd_t = kmalloc(sizeof(struct fd_table));
+	*(new_proc->fd_t) = *curproc->fd_t;
 
-  /* assign the new addresspace to the child proc */
-  new_proc->p_addrspace = as_child;
+	/* assign the new addresspace to the child proc */
+	new_proc->p_addrspace = as_child;
 
-  /* fork thread, giving entry point */
-  result = thread_fork("new forked process", new_proc, &child_execute, 
-      tf_child, 0);
-  if (result) {
-    return result;
-  }
+	/* fork thread, giving entry point */
+	result = thread_fork("new forked process", new_proc, &child_execute,
+			     tf_child, 0);
+	if (result) {
+		return result;
+	}
 
-  /* return current pid as the parent */
-  *pid = new_proc->p_pid;
+	/* return current pid as the parent */
+	*pid = new_proc->p_pid;
 
-  return 0;
+	return 0;
 }
 
 /*
@@ -141,10 +141,10 @@ sys_fork(struct trapframe *tf, pid_t *pid)
  * return the pid of the current process
  */
 int
-sys_getpid(pid_t *pid)
+sys_getpid(pid_t * pid)
 {
-  *pid = curproc->p_pid;
-  return 0;
+	*pid = curproc->p_pid;
+	return 0;
 }
 
 /*
@@ -154,8 +154,8 @@ sys_getpid(pid_t *pid)
 int
 sys__exit(int exit_status)
 {
-  pid_exit(curproc->p_pid, exit_status);
-  panic("sys_exit: unexpected return from thread_exit() \n");
+	pid_exit(curproc->p_pid, exit_status);
+	panic("sys_exit: unexpected return from thread_exit() \n");
 }
 
 /*
@@ -166,40 +166,40 @@ sys__exit(int exit_status)
 int
 sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid)
 {
-  int result;
+	int result;
 
-  /* sanity checks for pid number */
-  if (pid < PID_MIN || pid > PID_MAX) {
-    return ESRCH;
-  }
+	/* sanity checks for pid number */
+	if (pid < PID_MIN || pid > PID_MAX) {
+		return ESRCH;
+	}
 
-  /* ensure flags are legit */
-  if (options != 0 && options != WUNTRACED && options != WNOHANG) {
-    return EINVAL;
-  }
+	/* ensure flags are legit */
+	if (options != 0 && options != WUNTRACED && options != WNOHANG) {
+		return EINVAL;
+	}
 
-  (void)options;        /* pretend we use options */
-  int estatus;          /* status temp variable to write back to userland */
-  *retPid = (int)pid;   /* pid variable to pass back to user (set first) */ 
-  
+	(void) options;		/* pretend we use options */
+	int estatus;		/* status temp variable to write back to userland */
+	*retPid = (int) pid;	/* pid variable to pass back to user (set first) */
 
-  /* wait on process to end */
-  result = pid_wait(pid, curproc->p_pid, &estatus);
-  
-  /* if there was an error, return -1 */
-  if (result) {
-    *retPid = -1;
-    return result;
-  }
-  
-  /* check if status addr is null */
-  if (status != NULL) {
-    result = copyout(&estatus, status, sizeof(estatus));
-    if (result) {
-      *retPid = -1;
-      return result;
-    }
-  }
 
-  return result;
+	/* wait on process to end */
+	result = pid_wait(pid, curproc->p_pid, &estatus);
+
+	/* if there was an error, return -1 */
+	if (result) {
+		*retPid = -1;
+		return result;
+	}
+
+	/* check if status addr is null */
+	if (status != NULL) {
+		result = copyout(&estatus, status, sizeof(estatus));
+		if (result) {
+			*retPid = -1;
+			return result;
+		}
+	}
+
+	return result;
 }

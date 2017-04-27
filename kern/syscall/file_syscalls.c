@@ -42,7 +42,7 @@
 /*
  * Open system call: open a file.
  */
-int 
+int
 sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret)
 {
 	char fn[PATH_MAX];
@@ -62,12 +62,12 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret)
 /*
  * Write system call: write to a file.
  */
-int 
+int
 sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 {
 	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
-	  return EBADF;
+		return EBADF;
 	}
 
 	/* call system function to write to a file */
@@ -80,12 +80,12 @@ sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
  * this syscall will read buflen bytes from the fd file descriptor into the
  * userland buffer buf and return the number of bytes read in sz.
  */
-int 
+int
 sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
 {
 	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
-	  return EBADF;
+		return EBADF;
 	}
 
 	return file_read(fd, buf, buflen, sz);
@@ -100,12 +100,12 @@ sys_dup2(int oldfd, int newfd, int *fd_ret)
 {
 	/* check the file descriptors make sense */
 	if (oldfd < 0 || oldfd >= OPEN_MAX || newfd < 0 || newfd >= OPEN_MAX) {
-	  return EBADF;
+		return EBADF;
 	}
-	
+
 	/* assign return value for syscall */
 	*fd_ret = newfd;
-	
+
 	/* if both fd are the same, return */
 	if (oldfd == newfd) {
 		return 0;
@@ -159,15 +159,15 @@ sys_close(int fd)
  * shift the offset within an open file object
  */
 int
-sys_lseek(int fd, off_t pos, int whence, off_t *npos)
+sys_lseek(int fd, off_t pos, int whence, off_t * npos)
 {
 	int result;
 
 	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
-	  return EBADF;
+		return EBADF;
 	}
-	
+
 	/* check to see if whence is a legit value */
 	if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
 		return EINVAL;
@@ -175,7 +175,7 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 
 	/* get the file index */
 	int of_index = curproc->fd_t->fd_entries[fd];
-	
+
 	/* check if fd is closed */
 	if (of_index == FILE_CLOSED) {
 		return EBADF;
@@ -197,8 +197,7 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 	off_t og_pos = of->os;	/* original seek position to restore if needed */
 
 	/* determine new position */
-	switch(whence)
-	{
+	switch (whence) {
 	case SEEK_SET:
 		of->os = pos;
 		break;
