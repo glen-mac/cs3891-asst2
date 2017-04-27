@@ -155,8 +155,6 @@ syscall(struct trapframe *tf)
                 copyin((userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
                 err = sys_lseek((int)tf->tf_a0, (off_t)offset, whence, 
                     &retval64);
-                
-
                 break;
 
         case SYS_close:

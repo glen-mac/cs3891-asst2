@@ -61,13 +61,13 @@
 #include <pid.h>
 #include <kern/wait.h>
 
-void child_execute(void *tf, long unsigned int pid);
+static void child_execute(void *tf, long unsigned int pid);
 
 /*
  * child_execute
  * the entry point for a child proc upon process fork
  */
-void
+static void
 child_execute(void *tf, long unsigned int pid)
 {
   struct trapframe tf_new;
@@ -137,7 +137,10 @@ sys_fork(struct trapframe *tf, pid_t *pid)
   return 0;
 }
 
-
+/*
+ * sys_getpid
+ * return the pid of the current process
+ */
 int
 sys_getpid(pid_t *pid)
 {
@@ -145,6 +148,10 @@ sys_getpid(pid_t *pid)
   return 0;
 }
 
+/*
+ * sys__exit
+ * exit the current process, closing it and its threads down safely
+ */
 int
 sys__exit(int exit_status)
 {
@@ -152,6 +159,11 @@ sys__exit(int exit_status)
   panic("sys_exit: unexpected return from thread_exit() \n");
 }
 
+/*
+ * sys_waitpid
+ * wait for a process to exit, which has to be a child process of the 
+ * calling process. may save the exit status
+ */
 int
 sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid)
 {
@@ -166,7 +178,6 @@ sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid)
   if (options != 0 && options != WUNTRACED && options != WNOHANG) {
     return EINVAL;
   }
-
 
   (void)options;        /* pretend we use options */
   int estatus;          /* status temp variable to write back to userland */

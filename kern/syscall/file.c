@@ -36,6 +36,12 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
         /* get this process' file descriptor table */
         struct fd_table *fd_t = curproc->fd_t;
 
+        /* lock the file desc table for the proc */
+        lock_acquire(fd_t->fdt_l);
+  
+        /* lock the open file table for the proc */
+        lock_acquire(of_t->oft_l);
+
         /* find the next available file descriptor in process table */
         for (i = 0; i < OPEN_MAX; i++) {
                 if (fd_t->fd_entries[i] == FILE_CLOSED) {
@@ -55,6 +61,8 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
         /* file descriptor table and/or open file table is full */
         if (fd == -1 || of == -1) {
                 vfs_close(vn);
+                lock_release(of_t->oft_l);
+                lock_release(fd_t->fdt_l);
                 return EMFILE;
         }
 
@@ -62,6 +70,8 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
         struct open_file *of_entry = kmalloc(sizeof(struct open_file));
         if (of_entry == NULL) {
                 vfs_close(vn);
+                lock_release(of_t->oft_l);
+                lock_release(fd_t->fdt_l);
                 return ENOMEM;
         }
 
@@ -70,12 +80,14 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
         if (lk == NULL) {
                 vfs_close(vn);
                 kfree(of_entry);
+                lock_release(of_t->oft_l);
+                lock_release(fd_t->fdt_l);
                 return ENOMEM;
         }
 
         /* initialise file descriptor entry */
         fd_t->fd_entries[fd] = of;
-        
+ 
         /* make all the assignments to the file */
         of_entry->vn = vn;                          /* assign vnode */
         of_entry->fl = lk;                          /* assign file lock */
@@ -83,6 +95,12 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
         of_entry->am = flags & O_ACCMODE;           /* assign access mode */
         of_entry->os = 0;                           /* inital offset is 0 */
         of_t->openfiles[of] = of_entry;
+
+        /* release the oft */
+        lock_release(of_t->oft_l);
+
+        /* lock the file desc table for the proc */
+        lock_release(fd_t->fdt_l);
 
         /* assign the return value */
         *fd_ret = fd; 
@@ -105,8 +123,10 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
         struct iovec iovec_tmp;
         struct uio uio_tmp;
 
-        /* get the desired file and ensure it is actually open */
+        /* get exclusive access to the fdt */
         lock_acquire(curproc->fd_t->fdt_l);
+        
+        /* get the desired file and ensure it is actually open */
         int of_entry = curproc->fd_t->fd_entries[fd];
         if (of_entry < 0 || of_entry > OPEN_MAX) {
                 lock_release(curproc->fd_t->fdt_l);
@@ -154,10 +174,9 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
         of->os = uio_tmp.uio_offset;
 
         /* release the lock of the file because we are done */
-        // lock_release(of->fl);
         lock_release(of_t->oft_l);
         lock_release(curproc->fd_t->fdt_l);
-
+        
         return 0;
 }
 
@@ -171,8 +190,10 @@ file_write(int fd, userptr_t buf, size_t nbytes, int *sz)
         struct iovec iovec_tmp;
         struct uio uio_tmp;
 
-        /* get the desired file and ensure it is actually open */
+        /* get exclusive access to the fdt */
         lock_acquire(curproc->fd_t->fdt_l);
+        
+        /* get the desired file and ensure it is actually open */
         int of_entry = curproc->fd_t->fd_entries[fd];
         if (of_entry < 0 || of_entry > OPEN_MAX) {
                 lock_release(curproc->fd_t->fdt_l);
@@ -250,9 +271,10 @@ file_close(int fd)
                 return EBADF;
         }
 
-        /* get the open file we wish to close */
         /* get exclusive access to the file */
         lock_acquire(of_t->oft_l);
+
+        /* get the open file we wish to close */
         struct open_file *of = of_t->openfiles[of_entry];
         if (of == NULL) {
                 lock_release(of_t->oft_l);
@@ -264,7 +286,6 @@ file_close(int fd)
         curproc->fd_t->fd_entries[fd] = FILE_CLOSED;
 
         /* lock the open file to read from it */
-
         if (of->rc == 1) {
                 /* free memory */
                 vfs_close(of->vn);
@@ -275,7 +296,6 @@ file_close(int fd)
         }
 
         /* release exclusive access to the fd table */
-        /* lock_release(of->fl); -- already performed in the above if statements */
         lock_release(of_t->oft_l);
 
         /* if we weren't called from another syscall */
@@ -339,15 +359,14 @@ int file_table_init(const char *stdin_path, const char *stdout_path,
                 return ENOMEM;
         }
 
-        lock_acquire(fdt_lk);
+        /* we have the only reference to the fdt so don't acquire lock */
+
         curproc->fd_t->fdt_l = fdt_lk;
 
         /* empty the new table */
         for (i = 0; i < OPEN_MAX; i++) {
                 curproc->fd_t->fd_entries[i] = FILE_CLOSED;
         }
-
-        lock_release(fdt_lk);
 
         /* create stdin file desc */
         strcpy(path, stdin_path);

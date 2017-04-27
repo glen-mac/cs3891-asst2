@@ -99,7 +99,7 @@ pid_create(pid_t ppid)
     lock_release(pt_lock);
     return -1;
   }
-  
+ 
   /* make the pid struct */
   struct proc_pid *pp = kmalloc(sizeof(struct proc_pid));
   
@@ -186,7 +186,7 @@ pid_wait(pid_t pid, pid_t ppid, int *exit_status)
   }
 
   /* wait for pid to exit() */
-  if (!pp->pid_exited) {
+  while (!pp->pid_exited) {
     cv_wait(pp->pid_cv, pt_lock);
   }
 
@@ -209,8 +209,9 @@ pid_wait(pid_t pid, pid_t ppid, int *exit_status)
 void
 pid_exit(pid_t pid, int exit_status)
 {
-  lock_acquire(pt_lock);
   
+  lock_acquire(pt_lock);
+
   pid_alloc--;
 
   /* find current pid struct we are exiting */
@@ -225,6 +226,18 @@ pid_exit(pid_t pid, int exit_status)
 
   lock_release(pt_lock);
 
+  /*  ------ time to kill this process! -----  */
+  
+  /* get the current process, as remthread() will kill the macro */
+  struct proc *p = curproc;
+
+  /* remove the thread from current proc */
+  proc_remthread(curthread);
+
+  /* destroy the process */
+  proc_destroy(p);
+
+  /* kill the thread (will be exorcised on thread switch) */
   thread_exit();
 }
 

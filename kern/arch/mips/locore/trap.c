@@ -33,6 +33,7 @@
 #include <mips/specialreg.h>
 #include <mips/trapframe.h>
 #include <cpu.h>
+#include <proc.h>
 #include <spl.h>
 #include <thread.h>
 #include <current.h>
@@ -108,16 +109,17 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		break;
 	}
 
-	(void)epc;
-	(void)vaddr;
-	(void)sig;
-
-	 
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
 		code, sig, trapcodenames[code], epc, vaddr);
 	
+	/* get the current process, as remthread() will kill the macro */
+	struct proc *p = curproc;
 
-	//thread_exit();
+	/* remove the thread from current proc */
+	proc_remthread(curthread);
+
+	/* destroy the process */
+	proc_destroy(p);
 
 	panic("I don't know how to handle this\n");
 	
