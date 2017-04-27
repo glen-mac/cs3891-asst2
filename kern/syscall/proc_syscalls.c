@@ -119,7 +119,6 @@ sys_fork(struct trapframe *tf, pid_t *pid)
   /* create the file descriptor table as a copy of the parent's */
   new_proc->fd_t = kmalloc(sizeof(struct fd_table));
   *(new_proc->fd_t) = *curproc->fd_t;
-  new_proc->fd_t->fdt_l = lock_create("fd_table_lock");
 
   /* assign the new addresspace to the child proc */
   new_proc->p_addrspace = as_child;

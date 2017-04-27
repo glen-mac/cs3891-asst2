@@ -55,12 +55,7 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret)
 	}
 
 	/* call system function to open file */
-	result = file_open(fn, flags, mode, fd_ret);
-	if (result) {
-		return result;
-	}
-
-	return 0;
+	return file_open(fn, flags, mode, fd_ret);
 }
 
 
@@ -70,19 +65,13 @@ sys_open(userptr_t filename, int flags, mode_t mode, int *fd_ret)
 int 
 sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 {
-	int result;
-
 	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
 	  return EBADF;
 	}
 
-	result = file_write(fd, buf, nbytes, sz);
-	if (result) {
-		return result;
-	}
-	
-	return 0;
+	/* call system function to write to a file */
+	return file_write(fd, buf, nbytes, sz);
 }
 
 
@@ -94,20 +83,12 @@ sys_write(int fd, userptr_t buf, size_t nbytes, int *sz)
 int 
 sys_read(int fd, userptr_t buf, size_t buflen, int *sz)
 {
-	int result;
-
 	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
 	  return EBADF;
 	}
 
-	result = file_read(fd, buf, buflen, sz);
-	if (result) {
-		return result;
-	}
-
-	return 0;
-
+	return file_read(fd, buf, buflen, sz);
 }
 
 /*
@@ -130,35 +111,34 @@ sys_dup2(int oldfd, int newfd, int *fd_ret)
 		return 0;
 	}
 
-	/* acquire lock for fd_t because we are modifying it */
-	lock_acquire(curproc->fd_t->fdt_l);
+	/* get exclusive access to oft */
+	lock_acquire(of_t->oft_l);
 
+	/* get the old and new oft indices */
 	struct fd_table *fd_tab = curproc->fd_t;
 	int old_of = fd_tab->fd_entries[oldfd];
 	int new_of = fd_tab->fd_entries[newfd];
 
 	/* if we are trying to dup from a closed FD */
-	if (old_of == -1) {
-		lock_release(curproc->fd_t->fdt_l);
+	if (old_of == FILE_CLOSED) {
+		lock_release(of_t->oft_l);
 		return EBADF;
 	}
 
 	/* increment reference count */
 	struct open_file *of = of_t->openfiles[old_of];
-	lock_acquire(of->fl);
 	of->rc = of->rc + 1;
-	lock_release(of->fl);
 
 	/* if newfd is currently open, close it */
-	if (new_of != -1) {
+	if (new_of != FILE_CLOSED) {
 		file_close(newfd);
 	}
 
-	/* assign new open file table reference to new fd */
-	curproc->fd_t->fd_entries[newfd] = curproc->fd_t->fd_entries[oldfd];
+	/* get exclusive access to oft */
+	lock_release(of_t->oft_l);
 
-	/* release exclusive access to the process file descriptor table */
-	lock_release(curproc->fd_t->fdt_l);
+	/* assign new open file table reference to new fd */
+	fd_tab->fd_entries[newfd] = fd_tab->fd_entries[oldfd];
 
 	return 0;
 }
@@ -181,6 +161,8 @@ sys_close(int fd)
 int
 sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 {
+	int result;
+
 	/* check to see if the file descriptor is sensible */
 	if (fd < 0 || fd >= OPEN_MAX) {
 	  return EBADF;
@@ -199,15 +181,15 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 		return EBADF;
 	}
 
+	/* lock the oft so we can read and access it */
+	lock_acquire(of_t->oft_l);
+
 	/* get the actual file from the open file table */
 	struct open_file *of = of_t->openfiles[of_index];
 
-	/* lock the file so we can read and access it */
-	lock_acquire(of->fl);
-
 	/* check if the file is a device */
 	if (!VOP_ISSEEKABLE(of->vn)) {
-		lock_release(of->fl);
+		lock_release(of_t->oft_l);
 		return ESPIPE;
 	}
 
@@ -224,7 +206,11 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 		of->os = of->os + pos;
 		break;
 	case SEEK_END:
-		VOP_STAT(of->vn, &of_stat);
+		result = VOP_STAT(of->vn, &of_stat);
+		if (result) {
+			lock_release(of_t->oft_l);
+			return result;
+		}
 		of->os = pos + of_stat.st_size;
 		break;
 	}
@@ -232,15 +218,15 @@ sys_lseek(int fd, off_t pos, int whence, off_t *npos)
 	/* the seek would have been negative */
 	if (of->os < 0) {
 		of->os = og_pos;
-		lock_release(of->fl);
+		lock_release(of_t->oft_l);
 		return EINVAL;
 	}
-
 
 	/* assign new position */
 	*npos = of->os;
 
-	lock_release(of->fl);
+	/* release the table */
+	lock_release(of_t->oft_l);
 
 	return 0;
 }

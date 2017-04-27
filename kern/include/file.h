@@ -21,14 +21,12 @@
 
 /* per-process file descriptor table */
 struct fd_table {
-        struct lock *fdt_l;	    /* file descriptor table lock */
 	int fd_entries[OPEN_MAX];   /* array of of_t entries */
 };
 
 /* global open file table entry */
 struct open_file {
 	struct vnode *vn;		/* the vnode this file represents */
-	struct lock *fl;		/* file lock for accessing */
 	int am;			        /* the access mode of this file	*/
 	int rc;			        /* the reference count of this file */
 	off_t os;                       /* read offset within the file */

@@ -180,7 +180,6 @@ syscall(struct trapframe *tf)
 	else {
 		/* Success. */
 		if (callno == SYS_lseek) {
-                  kprintf("lseek return value is %lld\n", retval64);
                         split64to32(retval64, &tf->tf_v0, &tf->tf_v1);
                 } else {
                         tf->tf_v0 = retval;
