@@ -1,1 +1,107 @@
-Place your design document here.
+ASST2 Design Document
+
+Below you will find a series of questions which were posed during
+the design phase of the Assignment 2. Asking these questions before
+implementation made for a smooth and simple experience.
+
+# Design Questions
+
+## What primitive operations exist to support the transfer of data to
+and from kernel space? Do you want to implement more on top of these?
+
+kern/include/copyinout.h outlines the following functions that can be
+used to transfer both strings and data from kernel space to userland
+and also in reverse.
+
+int copyin(const_userptr_t usersrc, void *dest, size_t len);
+int copyout(const void *src, userptr_t userdest, size_t len); int
+copyinstr(const_userptr_t usersrc, char *dest, size_t len, size_t *got);
+int copyoutstr(const char *src, userptr_t userdest, size_t len, size_t
+*got);
+
+These functions were heavily leveraged throughout the syscall
+implementations in order to pass data back and forth with the user
+applications. For the syscalls implemented, no additional primitives
+were created, as those provided above were sufficient for all uses.
+
+Specific uses of these functions include in open(), in order to pass in
+the path to the file that is desired to be open.
+
+## How you will keep track of open files? For which system calls is
+this useful?
+
+The implementation of file descriptor tracking was the standard unix
+solution; this being a per-process array of OPEN_MAX ints, in which the
+index that is used to index this array is the process file descriptor. The
+values stored in this array per index, corresponds to an index in a
+global table which is not per-process, and represents a pointer to an
+open_file struct.
+
+The process structure was modified to include a pointer to a file
+descriptor table, of which is initialized when the process is loaded
+and run for the first time - and a check is performed to see if the
+open file exists yet - and in the event it doesn't then one is created
+and initialized.
+
+The open_file struct contains important information such as current
+offset, access mode, references count to this open file, a pointer to
+the underlying vnode that is provided by the VFS layer and a lock to
+ensure atomic synchronous handling.
+
+This global open file table is accessible by all processes, with proper
+atomic operations which are performed by the open, read, write, close
+syscalls. The dup2 syscall affects the per-process file descriptor
+table only.
+
+## How will you handle error cases and bad user input?
+
+Througout the implementation of the syscalls, the UNSW os161 man pages
+were followed closely to ensure that the spec was followed correctly,
+and that upon each inappropriate user input or error, the issue/error
+was handled gracefully such that kernel did not panic.
+
+This was also a venture in security, as it is undesireable for user
+applications to pass in kernel memory addresses and expect the OS to
+treat this as a user provided address.
+
+Specific examples of handling user input properly includes ensuring
+that in read(), the file descriptor that the user provides relates to
+a legitimate value (not < 0 and > OPEN_MAX) and also that the file that
+it corresponds to is in fact open.
+
+All potential error cases for all syscalls were covered, and it was found
+that additional error types did not have to be created, as the provided
+errors were sufficient for all potential user inputs.
+
+The VFS layer provided an excellent platform for handling incorrect user
+input, for example - flags used to open files. The underlying VFS layer
+provided the error return codes on incorrect interactions with vnodes,
+which were passed back to the user through the appropriate means. This
+made for less code and a thorough error coverage.
+
+## How will you handle multiple threads performing syscalls at the
+same time?
+
+The idea of concurrency was taken onboard throughout the design and came
+to fruition during implementation. The file descriptor table is accessed
+by many syscalls, as outlined above. Currently OS/161 is single threaded
+and so there is no need to lock the per process file descriptor table. If
+multithreading were to be introduced a lock must be acquired to ensure
+that modifications and updates to the table are atomic and do not affect
+syscalls currently in action - as very unpredictable outcomes can result.
+
+The global open file table was also equipped with a lock to access,
+for the same reason as the per-process file descriptor table - as files
+can be closed and affect other syscalls in progress.
+
+A lock was also implemented per open-file to utilize when reading and
+shifting forward the pointer to prevent the entire open file table /
+file descriptor table being locked - as this would just extend the
+critical region and block for longer.
+
+There were no concurrency issues that were come across during
+implementation due to the thorough design prior. This played out in
+our favour as the time spent debugging was significantly reduced,
+and no redesign had to be perform as all syscalls were implemented
+with concurrency is mind - which has also helped for the extended
+features/syscalls.
