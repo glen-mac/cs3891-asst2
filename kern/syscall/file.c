@@ -36,9 +36,6 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
         /* get this process' file descriptor table */
         struct fd_table *fd_t = curproc->fd_t;
 
-        /* lock the file desc table for the proc */
-        lock_acquire(fd_t->fdt_l);
-  
         /* lock the open file table for the proc */
         lock_acquire(of_t->oft_l);
 
@@ -49,9 +46,6 @@ file_open(char *filename, int flags, mode_t mode, int *fd_ret)
                         break;
                 }
         }
-
-        /* lock the open file table */
-        lock_acquire(of_t->oft_l);
 
         /* find the next available spot in global open file table */
         for (i = 0; i < OPEN_MAX; i++) {
