@@ -144,7 +144,6 @@ file_read(int fd, userptr_t buf, size_t buflen, int *sz)
 	/* update the seek pointer in the open file */
 	of->os = uio_tmp.uio_offset;
 
-
 	/* release the lock of the file because we are done */
 	lock_release(of_t->oft_l);
 
@@ -265,6 +264,33 @@ file_close(int fd)
 	return 0;
 }
 
+
+/*
+ * file_table_destroy
+ * destroys the process file table
+ */
+void file_table_destroy()
+{
+	int i;
+	for (i = 0; i < PID_MAX; i++) {
+		if (curproc->fd_t->fd_entries[i] != FILE_CLOSED) {
+			file_close(i);
+		}
+	}
+}
+
+/*
+ * open_file_table_destroy()
+ * destroys the open file table for the system for shutdown
+ */
+void open_file_table_destroy()
+{
+	if (of_t != NULL) {
+		kfree(of_t);
+	}
+}
+
+
 /* 
  * file_table_init
  * this function is called when a process is run. The point of it is to
@@ -341,7 +367,7 @@ file_table_init(const char *stdin_path, const char *stdout_path,
 	}
 
 	/* ensure that stdin is closed to begin with */
-	file_close(0);
+	//file_close(0);
 
 	return 0;
 }

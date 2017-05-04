@@ -43,6 +43,7 @@
 #include <vfs.h>
 #include <sfs.h>
 #include <syscall.h>
+#include <current.h>
 #include <test.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
@@ -133,6 +134,9 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
+
+	int retResult;
+	pid_wait(2, curproc->p_pid, &retResult);
 
 	/*
 	 * The new process will be destroyed when the program exits...

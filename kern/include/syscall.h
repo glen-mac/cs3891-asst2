@@ -68,5 +68,6 @@ int sys_dup2(int oldfd, int newfd, int *fd_ret);
 int sys_close(int fd);
 int sys_lseek(int fd, off_t pos, int whence, off_t *npos); 
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+int sys_execv(userptr_t progname, userptr_t *args);
 
 #endif /* _SYSCALL_H_ */

@@ -60,4 +60,10 @@ int file_close(int fd);
 int file_table_init(const char *stdin_path, const char *stdout_path,
 		    const char *stderr_path);
 
+/* destroys the file table */
+void file_table_destroy(void);
+
+/* destroys the open file table */
+void open_file_table_destroy(void);
+
 #endif /* _FILE_H_ */

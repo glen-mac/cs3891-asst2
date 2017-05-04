@@ -45,6 +45,7 @@
 #include <threadlist.h>
 #include <threadprivate.h>
 #include <proc.h>
+#include <file.h>
 #include <current.h>
 #include <synch.h>
 #include <addrspace.h>
@@ -356,9 +357,11 @@ thread_panic(void)
 void
 thread_shutdown(void)
 {
+	/* shutdown the oft */
+	open_file_table_destroy();
+
 	/* shutdown for the pid table */
 	pidtable_destroy();
-	
 	/*
 	 * Stop the other CPUs.
 	 *

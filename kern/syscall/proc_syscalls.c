@@ -61,6 +61,7 @@
 #include <pid.h>
 #include <kern/wait.h>
 
+/* a static function called internal within this file */
 static void child_execute(void *tf, long unsigned int pid);
 
 /*
@@ -70,20 +71,19 @@ static void child_execute(void *tf, long unsigned int pid);
 static void
 child_execute(void *tf, long unsigned int pid)
 {
-	struct trapframe tf_new;
-	tf_new = *(struct trapframe *) tf;
+    struct trapframe tf_new;
+    tf_new = *(struct trapframe *) tf;
 
-	pid_t pid_new = (pid_t) pid;
+    pid_t pid_new = (pid_t) pid;
 
-	/* set the return value to 0 (child proc) */
-	tf_new.tf_v0 = pid_new;
+    /* set the return value to 0 (child proc) */
+    tf_new.tf_v0 = pid_new;
 
-	/* run enter func from syscall.c */
-	enter_forked_process(&tf_new);
+    /* run enter func from syscall.c */
+    enter_forked_process(&tf_new);
 
-	/* child_execute does not return. */
-	panic("child_execute returned\n");
-
+    /* child_execute does not return. */
+    panic("child_execute returned\n");
 }
 
 /*
@@ -92,48 +92,60 @@ child_execute(void *tf, long unsigned int pid)
 int
 sys_fork(struct trapframe *tf, pid_t * pid)
 {
-	int result;
+    int result;
 
-	/* create trapframe for the child */
-	struct trapframe *tf_child = kmalloc(sizeof(struct trapframe));
-	if (tf_child == NULL) {
-		return ENOMEM;
+    /* create trapframe for the child */
+    struct trapframe *tf_child = kmalloc(sizeof(struct trapframe));
+    if (tf_child == NULL) {
+	return ENOMEM;
+    }
+
+    /* copy the parent trapframe struct data into the child */
+    *tf_child = *tf;
+
+    /* create the address space for the child */
+    struct addrspace *as_child = NULL;
+    as_copy(curproc->p_addrspace, &as_child);
+    if (as_child == NULL) {
+	return ENOMEM;
+    }
+
+    /* create the new proc */
+    struct proc *new_proc = proc_create_runprogram(curproc->p_name);
+    if (new_proc == NULL) {
+	return ENOMEM;
+    }
+
+    /* create the file descriptor table as a copy of the parent's */
+    new_proc->fd_t = kmalloc(sizeof(struct fd_table));
+    *(new_proc->fd_t) = *curproc->fd_t;
+
+    /* increment ref count to the oft entries */
+    int i;
+    struct fd_table *fd_t = new_proc->fd_t;
+    for (i = 0; i < OPEN_MAX; i++) {
+	if (fd_t->fd_entries[i] != FILE_CLOSED) {
+	    int ofd = fd_t->fd_entries[i];
+	    lock_acquire(of_t->oft_l);
+	    of_t->openfiles[ofd]->rc++;
+	    lock_release(of_t->oft_l);
 	}
+    }
 
-	/* copy the parent trapframe struct data into the child */
-	*tf_child = *tf;
+    /* assign the new addresspace to the child proc */
+    new_proc->p_addrspace = as_child;
 
-	/* create the address space for the child */
-	struct addrspace *as_child = NULL;
-	as_copy(curproc->p_addrspace, &as_child);
-	if (as_child == NULL) {
-		return ENOMEM;
-	}
+    /* fork thread, giving entry point */
+    result = thread_fork("new forked process", new_proc, &child_execute,
+	    tf_child, 0);
+    if (result) {
+	return result;
+    }
 
-	/* create the new proc */
-	struct proc *new_proc = proc_create_runprogram(curproc->p_name);
-	if (new_proc == NULL) {
-		return ENOMEM;
-	}
+    /* return current pid as the parent */
+    *pid = new_proc->p_pid;
 
-	/* create the file descriptor table as a copy of the parent's */
-	new_proc->fd_t = kmalloc(sizeof(struct fd_table));
-	*(new_proc->fd_t) = *curproc->fd_t;
-
-	/* assign the new addresspace to the child proc */
-	new_proc->p_addrspace = as_child;
-
-	/* fork thread, giving entry point */
-	result = thread_fork("new forked process", new_proc, &child_execute,
-			     tf_child, 0);
-	if (result) {
-		return result;
-	}
-
-	/* return current pid as the parent */
-	*pid = new_proc->p_pid;
-
-	return 0;
+    return 0;
 }
 
 /*
@@ -143,8 +155,8 @@ sys_fork(struct trapframe *tf, pid_t * pid)
 int
 sys_getpid(pid_t * pid)
 {
-	*pid = curproc->p_pid;
-	return 0;
+    *pid = curproc->p_pid;
+    return 0;
 }
 
 /*
@@ -154,8 +166,9 @@ sys_getpid(pid_t * pid)
 int
 sys__exit(int exit_status)
 {
-	pid_exit(curproc->p_pid, exit_status);
-	panic("sys_exit: unexpected return from thread_exit() \n");
+    /* call kernel level exit function and then panic if we return */
+    pid_exit(curproc->p_pid, exit_status);
+    panic("sys_exit: unexpected return from thread_exit() \n");
 }
 
 /*
@@ -166,40 +179,45 @@ sys__exit(int exit_status)
 int
 sys_waitpid(pid_t pid, userptr_t status, int options, int *retPid)
 {
-	int result;
+    int result;
 
-	/* sanity checks for pid number */
-	if (pid < PID_MIN || pid > PID_MAX) {
-		return ESRCH;
-	}
+    /* sanity checks for pid number */
+    if (pid < PID_MIN || pid > PID_MAX) {
+	return ESRCH;
+    }
 
-	/* ensure flags are legit */
-	if (options != 0 && options != WUNTRACED && options != WNOHANG) {
-		return EINVAL;
-	}
+    /* ensure status is not within kernel space */
+    if ((vaddr_t)status >= (vaddr_t)USERSPACETOP) {
+	return EFAULT;
+    }
 
-	(void) options;		/* pretend we use options */
-	int estatus;		/* status temp variable to write back to userland */
-	*retPid = (int) pid;	/* pid variable to pass back to user (set first) */
+    /* ensure flags are legit */
+    if (options != 0 && options != WUNTRACED && options != WNOHANG) {
+	return EINVAL;
+    }
+
+    (void) options;		/* pretend we use options */
+    int estatus;		/* status temp variable to write back to userland */
+    *retPid = (int) pid;	/* pid variable to pass back to user (set first) */
 
 
-	/* wait on process to end */
-	result = pid_wait(pid, curproc->p_pid, &estatus);
+    /* wait on process to end */
+    result = pid_wait(pid, curproc->p_pid, &estatus);
 
-	/* if there was an error, return -1 */
-	if (result) {
-		*retPid = -1;
-		return result;
-	}
-
-	/* check if status addr is null */
-	if (status != NULL) {
-		result = copyout(&estatus, status, sizeof(estatus));
-		if (result) {
-			*retPid = -1;
-			return result;
-		}
-	}
-
+    /* if there was an error, return -1 */
+    if (result) {
+	*retPid = -1;
 	return result;
+    }
+
+    /* check if status addr is null */
+    if (status != NULL) {
+	result = copyout(&estatus, status, sizeof(estatus));
+	if (result) {
+	    *retPid = -1;
+	    return result;
+	}
+    }
+
+    return result;
 }
