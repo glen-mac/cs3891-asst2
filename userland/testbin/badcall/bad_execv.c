@@ -173,9 +173,9 @@ test_execv(void)
 	exec_emptyprog();
 
 	exec_badargs(NULL, "exec with NULL arglist");
+	exec_badargs(INVAL_PTR, "exec with invalid pointer arglist");
 	exec_badargs(KERN_PTR, "exec with kernel pointer arglist");
-//	exec_badargs(INVAL_PTR, "exec with invalid pointer arglist");
 
-//	exec_onearg(INVAL_PTR, "exec with invalid pointer arg");
+	exec_onearg(INVAL_PTR, "exec with invalid pointer arg");
 	exec_onearg(KERN_PTR, "exec with kernel pointer arg");
 }
