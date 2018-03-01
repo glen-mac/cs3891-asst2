@@ -1,6 +1,4 @@
-# ASST2 Design Document
-
-*** SEE BOTTOM FOR EXTENDED DOCUMENTATION@@@@!!!!
+# COMP3891 Extended Operating Systems 2017/S1 - Assignment 2 (System calls and processes) Design Document
 
 Below you will find a series of questions which were posed during
 the design phase of the Assignment 2. Asking these questions before
