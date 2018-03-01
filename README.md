@@ -1,5 +1,7 @@
 # COMP3891 Extended Operating Systems 2017/S1 - Assignment 2 (System calls and processes) Design Document
 
+> In this assignment you will be implementing a software bridge between a set of file-related system calls inside the OS/161 kernel and their implementation within the VFS (obviously also inside the kernel). Upon completion, your operating system will be able to run a single application at user-level and perform some basic file I/O.
+
 Below you will find a series of questions which were posed during
 the design phase of the Assignment 2. Asking these questions before
 implementation made for a smooth and simple experience.
